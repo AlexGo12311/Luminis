@@ -10,6 +10,7 @@ import UIKit
 final class ScheduleController: BaseController {
     
     private let navBar = ScheduleNavBar()
+    private var lessons: [Lesson] = []
     
     let scheduleFeedTable: UITableView = {
         let table = UITableView(frame: .zero, style: .grouped)
@@ -20,7 +21,7 @@ final class ScheduleController: BaseController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-//        getSchedule()
+        navBar.delegate = self
 //        getGruopList()
     }
     
@@ -82,14 +83,43 @@ final class ScheduleController: BaseController {
         scheduleFeedTable.layer.addSublayer(bottomDot)
     }
     
-    private func getSchedule() {
-        APICaller.shared.getSchedule { results in
-            switch results {
-            case .success(let items):
-                print(items)
+    private func getSchedule(for date: Date) {
+        APICaller.shared.getSchedule(for: date) { result in
+            switch result {
+            case .success(let lessons):
+                // Обновляем UI с полученными уроками
+                self.updateUI(with: lessons)
             case .failure(let error):
-                print(error)
+                print("Error: \(error)")
             }
+        }
+    }
+
+    private func updateUI(with lessons: [Lesson]) {
+        print("Updating UI with \(lessons.count) lessons")
+        self.lessons = lessons
+        DispatchQueue.main.async {
+            if lessons.isEmpty {
+                // Показываем сообщение, что расписание пустое
+                if let sublayers = self.scheduleFeedTable.layer.sublayers {
+                    for sublayer in sublayers {
+                        sublayer.isHidden = true
+                    }
+                }
+                let label = UILabel(frame: self.scheduleFeedTable.bounds)
+                label.text = "No lessons for this day"
+                label.textAlignment = .center
+                label.textColor = .gray
+                self.scheduleFeedTable.backgroundView = label
+            } else {
+                if let sublayers = self.scheduleFeedTable.layer.sublayers {
+                    for sublayer in sublayers {
+                        sublayer.isHidden = false
+                    }
+                }
+                self.scheduleFeedTable.backgroundView = nil
+            }
+            self.scheduleFeedTable.reloadData()
         }
     }
     
@@ -145,38 +175,27 @@ final class ScheduleController: BaseController {
 extension ScheduleController: UITableViewDelegate, UITableViewDataSource {
     
     func numberOfSections(in tableView: UITableView) -> Int {
-        return 1
-    }
-    
-    
-    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return 3
-    }
+            return 1
+        }
+
+        func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+            return lessons.count // Количество строк равно количеству уроков
+        }
     
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        switch indexPath.row {
-        case 0:
-            guard let cell = tableView.dequeueReusableCell(withIdentifier: ScheduleTableViewCell.identifier, for: indexPath) as? ScheduleTableViewCell else { return UITableViewCell() }
-            cell.configureTimeView(start: "08:30", end: "11:40")
-            cell.configureCourseView(name: "Современные информационные технологии (ИС)", type: "Лекция", room: "А-332", teacher: "асс. Шулева ЮН")
-            return cell
-        case 2:
-            guard let cell = tableView.dequeueReusableCell(withIdentifier: ScheduleTableViewCell.identifier, for: indexPath) as? ScheduleTableViewCell else { return UITableViewCell() }
-            cell.configureTimeView(start: "15:40", end: "17:10")
-            cell.configureCourseView(name: "Основы программирования на Python (ИС)", type: "Лекция", room: "А-332", teacher: "доц. Язев ВА")
-            return cell
-//        case 2:
-//            guard let cell = tableView.dequeueReusableCell(withIdentifier: ScheduleTableViewCell.identifier, for: indexPath) as? ScheduleTableViewCell else { return UITableViewCell() }
-//            cell.configureTimeView(start: "17:30", end: "19:00")
-//            cell.configureCourseView(name: "Физика", type: "Лекция", room: "А-237", teacher: "Морозов ВВ")
-//            return cell
-        default:
-            guard let cell = tableView.dequeueReusableCell(withIdentifier: ScheduleTableViewCell.identifier, for: indexPath) as? ScheduleTableViewCell else { return UITableViewCell() }
-            return cell
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: ScheduleTableViewCell.identifier, for: indexPath) as? ScheduleTableViewCell else {
+            return UITableViewCell()
         }
+        
+        let lesson = lessons[indexPath.row] // Исправлено с indexPath.section на indexPath.row
+//        print("Configuring cell with lesson: \(lesson)")
+        cell.configureTimeView(start: lesson.startAt ?? "", end: lesson.endAt ?? "")
+        cell.configureCourseView(name: lesson.lessonName ?? "", type: "Лекция", room: lesson.auditoryName ?? "", teacher: lesson.teacherName ?? "")
+        
+        return cell
     }
-
+    
     func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
         return UITableView.automaticDimension
     }
@@ -185,3 +204,11 @@ extension ScheduleController: UITableViewDelegate, UITableViewDataSource {
         return 16 // Создаст отступ перед секцией, тем самым увеличив расстояние между ячейками
     }
 }
+
+
+extension ScheduleController: ScheduleNavBarDelegate {
+    func didSelectDay(_ date: Date) {
+        self.getSchedule(for: date)
+    }
+}
+

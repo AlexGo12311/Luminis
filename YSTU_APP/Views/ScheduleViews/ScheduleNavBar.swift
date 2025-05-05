@@ -5,6 +5,10 @@
 //  Created by Alex Neumark on 29.09.2024.
 //
 
+protocol ScheduleNavBarDelegate: AnyObject {
+    func didSelectDay(_ date: Date)
+}
+
 import UIKit
 
 final class ScheduleNavBar: UIView {
@@ -18,6 +22,8 @@ final class ScheduleNavBar: UIView {
     private var selectedDayIndex: Int?
     
     private var lastContentOffset: CGFloat = 0
+    
+    weak var delegate: ScheduleNavBarDelegate?
 
 
     // Начало года 1 января в данном случае
@@ -331,10 +337,13 @@ extension ScheduleNavBar: UICollectionViewDelegate, UICollectionViewDataSource, 
 
 }
 
+
 extension ScheduleNavBar: WeekCellDelegate {
     func dayButtonDidTapped(_ sender: DayButton) {
         selectedWeekIndex = nil
         selectedDayIndex = nil
+        
+        
         
         // Получаем текущий видимый индекс недели
         guard let visibleIndexPath = weekView.indexPathsForVisibleItems.first else { return }
@@ -344,16 +353,18 @@ extension ScheduleNavBar: WeekCellDelegate {
         selectedWeekIndex = currentWeekIndex
         selectedDayIndex = sender.tag
         
+        let dates = getDatesForWeek(startDate: weeks[currentWeekIndex].startDate)
+        let selectedDate = dates[selectedDayIndex ?? 0]
+        print("Selected date: \(selectedDate)")
+        delegate?.didSelectDay(selectedDate)
+        
         // Перезагружаем данные всех ячеек
         weekView.reloadData()
         
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "MMM dd, yyyy"  // Формат даты: Apr 08, 2022
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-        let dates = getDatesForWeek(startDate: weeks[currentWeekIndex].startDate)
-        
-        let selectedDay = dates[selectedDayIndex ?? 0]
-        currentDateLabel.text = dateFormatter.string(from: selectedDay)
+        currentDateLabel.text = dateFormatter.string(from: selectedDate)
         
         guard let currentWeekIndex = getCurrentWeekIndex(),
               let currentDayIndex = getCurrentDayIndexInWeek(currentWeekIndex) else {

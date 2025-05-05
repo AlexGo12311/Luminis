@@ -5,6 +5,7 @@
 //  Created by Alex Neumark on 23.09.2024.
 //
 
+
 import Foundation
 
 struct Constants {
@@ -19,23 +20,67 @@ enum APIError: Error {
 class APICaller {
     static let shared = APICaller()
     
-    func getSchedule(complition: @escaping (Result<[Item], Error>) -> Void) {
-        guard let url = URL(string: "\(Constants.baseURL)/schedule/v1/schedule/group/\(Constants.API_KEY)") else { return }
+    func getSchedule(for date: Date, completion: @escaping (Result<[Lesson], Error>) -> Void) {
+        guard let url = URL(string: "\(Constants.baseURL)/schedule/v1/schedule/group/\(Constants.API_KEY)") else {
+            completion(.failure(APIError.failedToGetData))
+            return
+        }
+        
         let task = URLSession.shared.dataTask(with: URLRequest(url: url)) { data, _, error in
-            guard let data = data, error == nil else {
+            if let error = error {
+                print("Network error: \(error)")
+                completion(.failure(error))
                 return
+            }
+            
+            guard let data = data else {
+                print("No data received")
+                completion(.failure(APIError.failedToGetData))
+                return
+            }
+            
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("Raw JSON response: \(jsonString)")
+            } else {
+                print("Failed to convert data to string")
             }
             
             do {
                 let results = try JSONDecoder().decode(LessonsResponse.self, from: data)
-                complition(.success(results.items))
+                print("Received \(results.items.count) items from API")
+                
+                // Фильтруем данные для выбранного дня
+                let selectedDayLessons = self.filterLessons(for: date, from: results.items)
+                
+                completion(.success(selectedDayLessons))
             } catch {
-                complition(.failure(error))
+                print("Decoding error: \(error)")
+                completion(.failure(error))
             }
         }
         
         task.resume()
+    }
+    
+    private func filterLessons(for date: Date, from items: [Item]) -> [Lesson] {
+        let calendar = Calendar.current
+        var lessonsForSelectedDay: [Lesson] = []
         
+        for item in items {
+            for day in item.days {
+                // Преобразуем строку даты в объект Date
+                if let dayDate = day.info.formDateFromString() {
+                    if calendar.isDate(dayDate, inSameDayAs: date) {
+                        lessonsForSelectedDay.append(contentsOf: day.lessons)
+                    }
+                } else {
+                    print("Failed to parse date: \(day.info.date ?? "nil")")
+                }
+            }
+        }
+        
+        print("Filtered \(lessonsForSelectedDay.count) lessons for date: \(date)")
+        return lessonsForSelectedDay
     }
     
     func getGroupsList(completion: @escaping (Result<[GroupSection], Error>) -> Void) {
@@ -69,4 +114,7 @@ class APICaller {
         
         task.resume()
     }
+
 }
+
+    

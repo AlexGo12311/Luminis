@@ -5,7 +5,8 @@
 //  Created by Alex Neumark on 24.09.2024.
 //
 
-import Foundation
+import UIKit
+
 
 struct LessonsResponse: Codable {
     let isCache: Bool?
@@ -28,7 +29,15 @@ struct Day: Codable {
 struct Info: Codable {
     let type: Int?
     let weekNumber: Int?
-    let date: String? // TODO: заменить на Date(), если нужно автоматически парсить дату
+    let date: String?
+    
+    public func formDateFromString() -> Date? {
+        guard let dateString = date, !dateString.isEmpty else { return nil }
+        
+        let dateFormatter = ISO8601DateFormatter()
+        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return dateFormatter.date(from: dateString)
+    }
 }
 
 // Структура для lessons
